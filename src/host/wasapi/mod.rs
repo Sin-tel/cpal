@@ -1,7 +1,9 @@
+#[allow(unused_imports)]
 pub use self::device::{
     default_input_device, default_output_device, Device, Devices, SupportedInputConfigs,
     SupportedOutputConfigs,
 };
+#[allow(unused_imports)]
 pub use self::stream::Stream;
 use crate::traits::HostTrait;
 use crate::BackendSpecificError;
@@ -95,6 +97,12 @@ fn windows_err_to_cpal_err_message<E: ErrDeviceNotAvailable>(
 ) -> E {
     match e.code() {
         Audio::AUDCLNT_E_DEVICE_INVALIDATED => E::device_not_available(),
+        Audio::AUDCLNT_E_DEVICE_IN_USE => {
+            let err = BackendSpecificError {
+                description: "The device is already in use.".to_string(),
+            };
+            err.into()
+        }
         _ => {
             let description = format!("{}{}", message, e);
             let err = BackendSpecificError { description };
