@@ -62,16 +62,7 @@ impl Device {
         }
 
         // Register the message callback with the driver
-        let error_callback_shared = Arc::new(Mutex::new(error_callback));
-
-        let message_callback_id = self.driver.add_message_callback(move |msg| {
-            // Check specifically for ResetRequest
-            if let sys::AsioMessageSelectors::kAsioResetRequest = msg {
-                if let Ok(mut cb) = error_callback_shared.lock() {
-                    cb(StreamError::AsioResetRequest);
-                }
-            }
-        });
+        let message_callback_id = self.add_message_callback(error_callback);
 
         let num_channels = config.channels;
         let buffer_size = self.get_or_create_input_stream(config, sample_format)?;
@@ -234,7 +225,7 @@ impl Device {
                 }
 
                 (&sys::AsioSampleType::ASIOSTInt24LSB, SampleFormat::I24) => {
-                    process_input_callback_i24(
+                    process_input_callback_i24::<I24, _>(
                         &mut data_callback,
                         &mut interleaved,
                         asio_stream,
@@ -244,7 +235,7 @@ impl Device {
                     );
                 }
                 (&sys::AsioSampleType::ASIOSTInt24MSB, SampleFormat::I24) => {
-                    process_input_callback_i24(
+                    process_input_callback_i24::<I24, _>(
                         &mut data_callback,
                         &mut interleaved,
                         asio_stream,
@@ -299,20 +290,7 @@ impl Device {
         }
 
         // Register the message callback with the driver
-        let error_callback_shared = Arc::new(Mutex::new(error_callback));
-
-        let message_callback_id = self.driver.add_message_callback(move |msg| {
-            // Check specifically for ResetRequest
-            if let sys::AsioMessageSelectors::kAsioResetRequest = msg {
-                if let Ok(mut cb) = error_callback_shared.lock() {
-                    cb(StreamError::BackendSpecific {
-                        err: BackendSpecificError {
-                            description: "ASIO reset request.".to_string(),
-                        },
-                    });
-                }
-            }
-        });
+        let message_callback_id = self.add_message_callback(error_callback);
 
         let num_channels = config.channels;
         let buffer_size = self.get_or_create_output_stream(config, sample_format)?;
@@ -356,7 +334,6 @@ impl Device {
             /// 2. If required, silence the ASIO buffer.
             /// 3. Finally, write the interleaved data to the non-interleaved ASIO buffer,
             ///    performing endianness conversions as necessary.
-            #[allow(clippy::too_many_arguments)]
             unsafe fn process_output_callback<A, D, F>(
                 data_callback: &mut D,
                 interleaved: &mut [u8],
@@ -664,6 +641,22 @@ impl Device {
             }
         }
     }
+
+    fn add_message_callback<E>(&self, error_callback: E) -> sys::MessageCallbackId
+    where
+        E: FnMut(StreamError) + Send + 'static,
+    {
+        let error_callback_shared = Arc::new(Mutex::new(error_callback));
+
+        self.driver.add_message_callback(move |msg| {
+            // Check specifically for ResetRequest
+            if let sys::AsioMessageSelectors::kAsioResetRequest = msg {
+                if let Ok(mut cb) = error_callback_shared.lock() {
+                    cb(StreamError::AsioResetRequest);
+                }
+            }
+        })
+    }
 }
 
 impl Drop for Stream {
@@ -779,7 +772,7 @@ unsafe fn asio_channel_slice<T>(
 ) -> &[T] {
     let channel_length = requested_channel_length.unwrap_or(asio_stream.buffer_size as usize);
     let buff_ptr: *const T =
-        asio_stream.buffer_infos[channel_index].buffers[buffer_index] as *const _;
+        asio_stream.buffer_infos[channel_index].buffers[buffer_index as usize] as *const _;
     std::slice::from_raw_parts(buff_ptr, channel_length)
 }
 
@@ -794,7 +787,8 @@ unsafe fn asio_channel_slice_mut<T>(
     requested_channel_length: Option<usize>,
 ) -> &mut [T] {
     let channel_length = requested_channel_length.unwrap_or(asio_stream.buffer_size as usize);
-    let buff_ptr: *mut T = asio_stream.buffer_infos[channel_index].buffers[buffer_index] as *mut _;
+    let buff_ptr: *mut T =
+        asio_stream.buffer_infos[channel_index].buffers[buffer_index as usize] as *mut _;
     std::slice::from_raw_parts_mut(buff_ptr, channel_length)
 }
 
@@ -895,7 +889,7 @@ unsafe fn process_output_callback_i24<D>(
     }
 }
 
-unsafe fn process_input_callback_i24<D>(
+unsafe fn process_input_callback_i24<A, D>(
     data_callback: &mut D,
     interleaved: &mut [u8],
     asio_stream: &sys::AsioStream,
@@ -903,6 +897,7 @@ unsafe fn process_input_callback_i24<D>(
     sample_rate: crate::SampleRate,
     little_endian: bool,
 ) where
+    A: Copy,
     D: FnMut(&Data, &InputCallbackInfo) + Send + 'static,
 {
     let format = SampleFormat::I24;
