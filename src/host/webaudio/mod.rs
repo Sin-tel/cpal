@@ -1,3 +1,7 @@
+//! Web Audio backend implementation.
+//!
+//! Default backend on WebAssembly.
+
 extern crate js_sys;
 extern crate wasm_bindgen;
 extern crate web_sys;
@@ -47,9 +51,9 @@ pub use crate::iter::{SupportedInputConfigs, SupportedOutputConfigs};
 
 const MIN_CHANNELS: u16 = 1;
 const MAX_CHANNELS: u16 = 32;
-const MIN_SAMPLE_RATE: SampleRate = SampleRate(8_000);
-const MAX_SAMPLE_RATE: SampleRate = SampleRate(96_000);
-const DEFAULT_SAMPLE_RATE: SampleRate = SampleRate(44_100);
+const MIN_SAMPLE_RATE: SampleRate = 8_000;
+const MAX_SAMPLE_RATE: SampleRate = 96_000;
+const DEFAULT_SAMPLE_RATE: SampleRate = 44_100;
 const MIN_BUFFER_SIZE: u32 = 1;
 const MAX_BUFFER_SIZE: u32 = u32::MAX;
 const DEFAULT_BUFFER_SIZE: usize = 2048;
@@ -231,7 +235,7 @@ impl DeviceTrait for Device {
 
         // Create the WebAudio stream.
         let stream_opts = AudioContextOptions::new();
-        stream_opts.set_sample_rate(config.sample_rate.0 as f32);
+        stream_opts.set_sample_rate(config.sample_rate as f32);
         let ctx = AudioContext::new_with_context_options(&stream_opts).map_err(
             |err| -> BuildStreamError {
                 let description = format!("{:?}", err);
@@ -286,7 +290,7 @@ impl DeviceTrait for Device {
                 .create_buffer(
                     config.channels as u32,
                     buffer_size_frames as u32,
-                    config.sample_rate.0 as f32,
+                    config.sample_rate as f32,
                 )
                 .map_err(|err| -> BuildStreamError {
                     let description = format!("{:?}", err);
@@ -358,7 +362,7 @@ impl DeviceTrait for Device {
                         // See this issue: https://github.com/WebAudio/web-audio-api/issues/2565
                         #[cfg(target_feature = "atomics")]
                         {
-                            temporary_channel_array_view.copy_from(&mut temporary_channel_buffer);
+                            temporary_channel_array_view.copy_from(&temporary_channel_buffer);
                             ctx_buffer
                                 .unchecked_ref::<ExternalArrayAudioBuffer>()
                                 .copy_to_channel(&temporary_channel_array_view, channel as i32)
@@ -525,7 +529,7 @@ fn valid_config(conf: &StreamConfig, sample_format: SampleFormat) -> bool {
 }
 
 fn buffer_time_step_secs(buffer_size_frames: usize, sample_rate: SampleRate) -> f64 {
-    buffer_size_frames as f64 / sample_rate.0 as f64
+    buffer_size_frames as f64 / sample_rate as f64
 }
 
 #[cfg(target_feature = "atomics")]
