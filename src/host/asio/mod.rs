@@ -15,8 +15,10 @@ use crate::{
 
 pub use self::device::{Device, Devices, SupportedInputConfigs, SupportedOutputConfigs};
 pub use self::stream::Stream;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+
+static GLOBAL_ASIO: OnceLock<Arc<sys::Asio>> = OnceLock::new();
 
 mod device;
 mod stream;
@@ -29,7 +31,10 @@ pub struct Host {
 
 impl Host {
     pub fn new() -> Result<Self, crate::HostUnavailable> {
-        let asio = Arc::new(sys::Asio::new());
+        let asio = GLOBAL_ASIO
+            .get_or_init(|| Arc::new(sys::Asio::new()))
+            .clone();
+
         let host = Host { asio };
         Ok(host)
     }
