@@ -28,13 +28,15 @@ fn main() -> anyhow::Result<()> {
 
     stream.play()?;
 
-    let device = device.as_inner();
-
-    if let DeviceInner::Asio(asio) = device {
-        if let Err(e) = asio.open_control_panel() {
-            eprintln!("Could not open panel: {:?}", e);
-        }
-    }
+    if let DeviceInner::Asio(asio_device) = device.as_inner() {
+        // This is a blocking call on some devices, so spawn it in its own thread.
+        let asio_device = asio_device.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = asio_device.open_control_panel() {
+                eprintln!("Could not open panel: {:?}", e);
+            }
+        });
+    };
 
     // Keep the thread alive so the window doesn't close immediately
     std::thread::sleep(std::time::Duration::from_secs(5));
