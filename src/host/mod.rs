@@ -8,7 +8,7 @@ pub(crate) mod aaudio;
 ))]
 pub(crate) mod alsa;
 #[cfg(all(windows, feature = "asio"))]
-pub(crate) mod asio;
+pub mod asio;
 #[cfg(all(
     feature = "wasm-bindgen",
     feature = "audioworklet",
