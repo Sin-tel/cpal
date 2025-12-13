@@ -1,18 +1,19 @@
+use cpal::platform::DeviceInner;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-
-// Import the specific ASIO host module directly
-#[cfg(target_os = "windows")]
-use cpal::host::asio;
+use cpal::HostId;
 
 #[cfg(target_os = "windows")]
 fn main() -> anyhow::Result<()> {
-    let host = asio::Host::new()?;
+    let host = cpal::host_from_id(HostId::Asio)?;
 
     let device = host
         .default_output_device()
         .ok_or_else(|| anyhow::anyhow!("No ASIO device found"))?;
 
-    println!("Opening control panel for: {}", device.name()?);
+    println!(
+        "Opening control panel for: {}",
+        device.description()?.name()
+    );
 
     let config = device.default_output_config()?;
 
@@ -27,12 +28,16 @@ fn main() -> anyhow::Result<()> {
 
     stream.play()?;
 
-    if let Err(e) = device.open_control_panel() {
-        eprintln!("Could not open panel: {:?}", e);
+    let device = device.as_inner();
+
+    if let DeviceInner::Asio(asio) = device {
+        if let Err(e) = asio.open_control_panel() {
+            eprintln!("Could not open panel: {:?}", e);
+        }
     }
 
     // Keep the thread alive so the window doesn't close immediately
-    std::thread::sleep(std::time::Duration::from_secs(60));
+    std::thread::sleep(std::time::Duration::from_secs(5));
 
     Ok(())
 }

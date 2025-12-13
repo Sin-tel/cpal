@@ -193,7 +193,7 @@ use std::time::Duration;
 
 pub mod device_description;
 mod error;
-pub mod host;
+mod host;
 pub mod platform;
 mod samples_formats;
 pub mod traits;
