@@ -1,9 +1,9 @@
-use cpal::platform::DeviceInner;
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::HostId;
-
-#[cfg(target_os = "windows")]
+#[cfg(all(windows, feature = "asio"))]
 fn main() -> anyhow::Result<()> {
+    use cpal::platform::DeviceInner;
+    use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+    use cpal::HostId;
+
     let host = cpal::host_from_id(HostId::Asio)?;
 
     let device = host
@@ -42,5 +42,5 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(all(windows, feature = "asio")))]
 fn main() {}
