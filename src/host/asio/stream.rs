@@ -225,7 +225,7 @@ impl Device {
                 }
 
                 (&sys::AsioSampleType::ASIOSTInt24LSB, SampleFormat::I24) => {
-                    process_input_callback_i24(
+                    process_input_callback_i24::<I24, _>(
                         &mut data_callback,
                         &mut interleaved,
                         asio_stream,
@@ -235,7 +235,7 @@ impl Device {
                     );
                 }
                 (&sys::AsioSampleType::ASIOSTInt24MSB, SampleFormat::I24) => {
-                    process_input_callback_i24(
+                    process_input_callback_i24::<I24, _>(
                         &mut data_callback,
                         &mut interleaved,
                         asio_stream,
@@ -334,7 +334,6 @@ impl Device {
             /// 2. If required, silence the ASIO buffer.
             /// 3. Finally, write the interleaved data to the non-interleaved ASIO buffer,
             ///    performing endianness conversions as necessary.
-            #[allow(clippy::too_many_arguments)]
             unsafe fn process_output_callback<A, D, F>(
                 data_callback: &mut D,
                 interleaved: &mut [u8],
@@ -774,7 +773,7 @@ unsafe fn asio_channel_slice<T>(
 ) -> &[T] {
     let channel_length = requested_channel_length.unwrap_or(asio_stream.buffer_size as usize);
     let buff_ptr: *const T =
-        asio_stream.buffer_infos[channel_index].buffers[buffer_index] as *const _;
+        asio_stream.buffer_infos[channel_index].buffers[buffer_index as usize] as *const _;
     std::slice::from_raw_parts(buff_ptr, channel_length)
 }
 
@@ -789,7 +788,8 @@ unsafe fn asio_channel_slice_mut<T>(
     requested_channel_length: Option<usize>,
 ) -> &mut [T] {
     let channel_length = requested_channel_length.unwrap_or(asio_stream.buffer_size as usize);
-    let buff_ptr: *mut T = asio_stream.buffer_infos[channel_index].buffers[buffer_index] as *mut _;
+    let buff_ptr: *mut T =
+        asio_stream.buffer_infos[channel_index].buffers[buffer_index as usize] as *mut _;
     std::slice::from_raw_parts_mut(buff_ptr, channel_length)
 }
 
@@ -890,7 +890,7 @@ unsafe fn process_output_callback_i24<D>(
     }
 }
 
-unsafe fn process_input_callback_i24<D>(
+unsafe fn process_input_callback_i24<A, D>(
     data_callback: &mut D,
     interleaved: &mut [u8],
     asio_stream: &sys::AsioStream,
@@ -898,6 +898,7 @@ unsafe fn process_input_callback_i24<D>(
     sample_rate: crate::SampleRate,
     little_endian: bool,
 ) where
+    A: Copy,
     D: FnMut(&Data, &InputCallbackInfo) + Send + 'static,
 {
     let format = SampleFormat::I24;
